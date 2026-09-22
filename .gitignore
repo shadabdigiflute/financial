@@ -1,0 +1,15 @@
+# Large archives
+*.zip
+*.tar.gz
+
+# System & IDE files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Temporary files
+*.log
+*.tmp

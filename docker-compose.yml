@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "80:80"
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_NAME: financial
+      WORDPRESS_DB_USER: financial_user
+      WORDPRESS_DB_PASSWORD: financial_secure_password_2026
+      WORDPRESS_TABLE_PREFIX: wp_
+    depends_on:
+      - db
+    volumes:
+      - wp_uploads:/var/www/html/wp-content/uploads
+
+  db:
+    image: mariadb:10.11
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: financial_root_password_2026
+      MYSQL_DATABASE: financial
+      MYSQL_USER: financial_user
+      MYSQL_PASSWORD: financial_secure_password_2026
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./sql:/docker-entrypoint-initdb.d
+
+volumes:
+  wp_uploads:
+  db_data:

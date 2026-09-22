@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Meridian — Global Finance</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700;8..60,900&family=Libre+Franklin:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/meridian.css" />
+</head>
+<body>
+  <div data-chrome="header"></div>
+
+  <main id="main" class="container-x mx-auto px-3 py-4">
+    <div class="row g-4">
+      <div class="col-12 col-lg-8">
+        <!-- Lead -->
+        <section class="border-bottom rule-strong pb-4">
+          <div class="row g-4">
+            <div class="col-12 col-md-7">
+              <a href="#" id="lead-link" class="d-block">
+                <span class="text-accent2 fw-bold text-uppercase tracking-wider" style="font-size:11px" id="lead-kicker"></span>
+                <h1 class="font-serif fw-black mt-2" style="font-size:34px;line-height:1.08;letter-spacing:-.02em" id="lead-title"></h1>
+                <p class="text-soft mt-2" style="font-size:16px;line-height:1.55" id="lead-blurb"></p>
+                <div class="mt-2 text-faint text-uppercase tracking-wide d-flex gap-3" style="font-size:11px">
+                  <span id="lead-byline"></span><span id="lead-time"></span>
+                </div>
+              </a>
+            </div>
+            <div class="col-12 col-md-5 border-start rule ps-md-4" id="lead-list"></div>
+          </div>
+        </section>
+
+        <div class="my-4" id="ad-1"></div>
+
+        <!-- Markets wrap -->
+        <section class="border-bottom rule-strong py-4">
+          <div id="mw-head"></div>
+          <div class="row" id="mw-list"></div>
+        </section>
+
+        <!-- Section grid -->
+        <div class="row g-4 mt-1" id="sections"></div>
+
+        <div class="my-4" id="ad-2"></div>
+
+        <!-- Opinion + Video -->
+        <div class="row g-4">
+          <section class="col-12 col-sm-6 bg-card p-4">
+            <div id="op-head"></div>
+            <div id="op-list"></div>
+          </section>
+          <section class="col-12 col-sm-6">
+            <div id="vid-head"></div>
+            <div id="vid-list"></div>
+          </section>
+        </div>
+      </div>
+
+      <div class="col-12 col-lg-4" id="rail"></div>
+    </div>
+  </main>
+
+  <div data-chrome="footer"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/content.js"></script>
+  <script src="assets/js/chrome.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const D = window.DATA;
+      // Lead
+      document.getElementById("lead-kicker").textContent = D.LEAD.kicker;
+      document.getElementById("lead-title").textContent = D.LEAD.title;
+      document.getElementById("lead-blurb").textContent = D.LEAD.blurb;
+      document.getElementById("lead-byline").textContent = D.LEAD.byline;
+      document.getElementById("lead-time").textContent = D.LEAD.time;
+      document.getElementById("lead-link").href = "article.html?a=" + D.slugify(D.LEAD.title);
+      document.getElementById("lead-list").innerHTML =
+        window.sectionHead("More on the Fed") + D.LEAD_LIST.map((it) => window.headline(it)).join("");
+
+      document.getElementById("ad-1").innerHTML = window.ad(728, 90);
+      document.getElementById("ad-2").innerHTML = window.ad(728, 90);
+
+      // Markets wrap
+      document.getElementById("mw-head").innerHTML = window.sectionHead("Markets Wrap", "category.html?s=world-markets");
+      document.getElementById("mw-list").innerHTML =
+        D.MARKETS_WRAP.map((it) => `<div class="col-12 col-sm-6 col-lg-4">${window.headline(it)}</div>`).join("");
+
+      // Sections grid with an in-feed MPU after the 4th block
+      document.getElementById("sections").innerHTML = D.SECTIONS.map((sec, i) => {
+        const rows = sec.items.map((it, idx) => window.headline(it, idx === 0)).join("");
+        const ad = i === 3 ? `<div class="mt-4 d-none d-sm-block">${window.ad(300, 250)}</div>` : "";
+        return `<div class="col-12 col-sm-6"><section>${window.sectionHead(sec.name, "category.html?s=" + D.slugify(sec.name))}${rows}</section>${ad}</div>`;
+      }).join("");
+
+      // Opinion
+      document.getElementById("op-head").innerHTML = window.sectionHead("Opinion & Analysis", "category.html?s=opinion");
+      document.getElementById("op-list").innerHTML = D.OPINION.map((it, i) => window.headline(it, i === 0)).join("");
+
+      // Video
+      document.getElementById("vid-head").innerHTML = window.sectionHead("Video");
+      document.getElementById("vid-list").innerHTML = D.VIDEOS.map((it) => `
+        <article class="headline"><a href="article.html?a=${D.slugify(it.title)}" class="d-flex align-items-start gap-3">
+          <span class="bg-charcoal text-white fw-bold tabular px-2 py-1 flex-shrink-0" style="font-size:11px;border-radius:2px">▶ ${it.kicker}</span>
+          <span><span class="font-serif d-block fw-semibold" style="font-size:15px;line-height:1.3">${it.title}</span>
+          <span class="time d-block mt-1">${it.time}</span></span>
+        </a></article>`).join("");
+
+      document.getElementById("rail").innerHTML = window.sidebar();
+    });
+  </script>
+</body>
+</html>
