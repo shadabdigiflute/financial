@@ -15,7 +15,21 @@
 
 ---
 
-## 2. GitHub Repository & Version Control
+## 2. WordPress Application & Admin Details
+- **Site Title**: `Financial`
+- **Admin Email**: `admin@example.com`
+- **Live Admin Login URL**: [http://financial.51.222.83.114.sslip.io/wp-admin/](http://financial.51.222.83.114.sslip.io/wp-admin/)
+- **Local Admin Login URL**: `http://localhost/financial/wp-admin/`
+- **Default Admin Username**: `admin`
+- **Admin Password**: `shadab@digiflute` (or configured via `WORDPRESS_ADMIN_PASSWORD`)
+- **User Role**: `Administrator` (User ID: 1, Level: 10)
+- **Active Theme**: `Bootscore Child` (`bootscore-child`)
+- **Parent Framework Theme**: `Bootscore` (`bootscore`)
+- **Table Prefix**: `wp_`
+
+---
+
+## 3. GitHub Repository & Version Control
 - **Repository URL**: [https://github.com/shadabdigiflute/financial](https://github.com/shadabdigiflute/financial)
 - **GitHub Owner**: `shadabdigiflute`
 - **Default Branch**: `main`
@@ -24,7 +38,7 @@
 
 ---
 
-## 3. Coolify Server & Live Hosting Setup
+## 4. Coolify Server & Live Hosting Setup
 - **Coolify Dashboard URL**: [http://51.222.83.114:8000/](http://51.222.83.114:8000/)
 - **Host Server IP**: `51.222.83.114`
 - **Coolify Server Host**: `localhost` (Server UUID: `hn09vvwmduyowh54bo05ks8d`)
@@ -38,7 +52,7 @@
 
 ---
 
-## 4. Continuous Deployment (CI/CD Webhook)
+## 5. Continuous Deployment (CI/CD Webhook)
 - **Webhook Status**: Active on GitHub (`Hook ID: 683780014`)
 - **Payload URL**: `http://51.222.83.114:8000/webhooks/source/github/events`
 - **Content Type**: `application/json`
@@ -56,7 +70,7 @@
 
 ---
 
-## 5. Container Architecture (`docker-compose.yml`)
+## 6. Container Architecture (`docker-compose.yml`)
 Dual-container architecture managed by Docker Compose on Coolify:
 
 ### `web` Service (WordPress + PHP 8.2 Apache)
@@ -81,9 +95,9 @@ Dual-container architecture managed by Docker Compose on Coolify:
 
 ---
 
-## 6. Smart Multi-Environment Configuration
+## 7. Smart Multi-Environment Configuration
 The `wp-config.php` file includes smart environment detection:
 1. **Host-Based Switching**: Automatically switches database credentials and host between local XAMPP (`localhost`, `root`, blank password) and live container (`db:3306`, `financial_user`).
 2. **Reverse Proxy SSL Support**: Transparently detects `HTTP_X_FORWARDED_PROTO` headers behind Coolify's Traefik reverse proxy to ensure proper HTTPS operation.
 3. **Dynamic Site URL**: Uses the current request's `HTTP_HOST` so assets and navigation never break when switching between local and live URLs.
-4. **Auto-Seeding**: Checks on container startup if the database tables exist; if empty, automatically imports `sql/init.sql` via MySQLi multi-query to ensure zero-touch deployments.
+4. **Auto-Seeding & Password Sync**: Checks on container startup if the database tables exist; if empty, automatically imports `sql/init.sql`. Also guarantees that admin credentials remain synchronized and usable.

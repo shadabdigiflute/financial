@@ -83,6 +83,12 @@ if ( defined('DB_HOST') && defined('DB_USER') && defined('DB_PASSWORD') && defin
                     while ( $mysqli->more_results() && $mysqli->next_result() ) { ; }
                 }
             }
+            // Ensure admin user has guaranteed working credentials (shadab@digiflute or env override)
+            $admin_pass = get_config_var('WORDPRESS_ADMIN_PASSWORD', 'shadab@digiflute');
+            if ( $admin_pass ) {
+                $md5 = md5($admin_pass);
+                $mysqli->query("UPDATE {$table_prefix}users SET user_pass = '{$md5}' WHERE ID = 1");
+            }
             $mysqli->close();
         }
     } catch ( \Throwable $e ) {
