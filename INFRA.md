@@ -1,77 +1,89 @@
 # Financial Project Infrastructure & Workspace Documentation
 
-## 1. Project Overview
-- **Project Name**: Financial (WordPress Corporate / Financial Services Theme)
+## 1. Workspace & Project Summary
+- **Project Name**: Financial (Corporate & Financial Services WordPress Site)
 - **Local Workspace Path**: `c:\xampp\htdocs\financial`
-- **Primary Tech Stack**: WordPress 6.7, PHP 8.2, MariaDB 10.11 / MySQL, Bootscore Child Theme, Apache
-- **Custom Theme**: `bootscore-child` (inheriting from `bootscore`)
-- **HTML Templates**: Located in `financial-html-templates/`
-- **Database Dump**: `sql/init.sql` (Auto-imported on container initialization)
+- **Active Theme**: `bootscore-child` (Parent: `bootscore`)
+- **Core Technology Stack**:
+  - WordPress 6.7
+  - PHP 8.2 (Apache)
+  - MariaDB 10.11 / MySQL
+  - Bootstrap 5 via Bootscore framework
+  - Docker & Docker Compose
+- **Local Database**: MySQL database `financial` in XAMPP
+- **Exported Seed Database**: `sql/init.sql` (53.4 KB)
 
 ---
 
-## 2. GitHub Repository Configuration
-- **Repository URL**: `https://github.com/shadabdigiflute/financial`
-- **Repository Visibility**: Public / Private
-- **Owner**: `shadabdigiflute`
+## 2. GitHub Repository & Version Control
+- **Repository URL**: [https://github.com/shadabdigiflute/financial](https://github.com/shadabdigiflute/financial)
+- **GitHub Owner**: `shadabdigiflute`
 - **Default Branch**: `main`
-- **CI/CD Integration**: Webhook configured to trigger Coolify rolling deployment on every push to `main`
+- **Authentication**: GitHub Personal Access Token (PAT)
+- **Local Git Tooling**: MinGit portable installed at `C:\Users\shada\AppData\Local\MinGit` and registered in environment `PATH`.
 
 ---
 
-## 3. Coolify Server & Live Hosting
-- **Coolify Dashboard URL**: `http://51.222.83.114:8000/`
-- **Server IP**: `51.222.83.114`
-- **Server Hostname**: `localhost` (Coolify Host UUID: `hn09vvwmduyowh54bo05ks8d`)
-- **Coolify Project**: `financial`
-- **Live Website URL**: `http://financial.51.222.83.114.sslip.io`
-- **Traefik Reverse Proxy**: Automatically proxies traffic on port 80/443 to the WordPress `web` service container.
+## 3. Coolify Server & Live Hosting Setup
+- **Coolify Dashboard URL**: [http://51.222.83.114:8000/](http://51.222.83.114:8000/)
+- **Host Server IP**: `51.222.83.114`
+- **Coolify Server Host**: `localhost` (Server UUID: `hn09vvwmduyowh54bo05ks8d`)
+- **Coolify Project**: `financial` (Project UUID: `yujczlojzjbrc0e81qeuuhxj`)
+- **Environment**: `production` (Environment UUID: `mee9ujjs2b96x1vnzsfmveig`)
+- **Application Resource**: `financial-app` (Resource UUID: `trjfn6bfcse3v1szbzd4tlad`)
+- **Build Pack**: `dockercompose`
+- **Compose Path**: `/docker-compose.yml`
+- **Live Website URL**: [http://financial.51.222.83.114.sslip.io](http://financial.51.222.83.114.sslip.io)
+- **Live HTTP Status**: `200 OK`
 
 ---
 
-## 4. Container Architecture (Docker Compose)
-The application runs as a containerized stack orchestrated by Docker Compose:
-
-### Services:
-1. **`web` (WordPress Application Service)**:
-   - **Base Image / Build**: Custom build from `Dockerfile` (`wordpress:6.7-php8.2-apache` + `libzip`)
-   - **Internal Port**: `80`
-   - **Environment Variables**:
-     - `WORDPRESS_DB_HOST`: `db:3306`
-     - `WORDPRESS_DB_NAME`: `financial`
-     - `WORDPRESS_DB_USER`: `financial_user`
-     - `WORDPRESS_DB_PASSWORD`: `financial_secure_password_2026`
-     - `WORDPRESS_TABLE_PREFIX`: `wp_`
-   - **Volumes**:
-     - `wp_uploads`: `/var/www/html/wp-content/uploads`
-
-2. **`db` (Database Service)**:
-   - **Image**: `mariadb:10.11`
-   - **Environment Variables**:
-     - `MYSQL_ROOT_PASSWORD`: `financial_root_password_2026`
-     - `MYSQL_DATABASE`: `financial`
-     - `MYSQL_USER`: `financial_user`
-     - `MYSQL_PASSWORD`: `financial_secure_password_2026`
-   - **Volumes**:
-     - `db_data`: `/var/lib/mysql`
-     - `./sql`: `/docker-entrypoint-initdb.d` (automatically seeds initial database on first launch)
+## 4. Continuous Deployment (CI/CD Webhook)
+- **Webhook Status**: Active on GitHub (`Hook ID: 683780014`)
+- **Payload URL**: `http://51.222.83.114:8000/webhooks/source/github/events`
+- **Content Type**: `application/json`
+- **Trigger Events**: `push` to `main` branch
+- **Deployment Flow**:
+  1. Developer modifies code in `c:\xampp\htdocs\financial`.
+  2. Commit and push changes to `origin main`:
+     ```powershell
+     git add .
+     git commit -m "Your update message"
+     git push origin main
+     ```
+  3. GitHub sends a webhook POST to Coolify.
+  4. Coolify triggers a zero-downtime rolling container rebuild and deploys to the live URL.
 
 ---
 
-## 5. Local Development vs. Production Mode
-- **Local XAMPP**: Runs directly from `c:\xampp\htdocs\financial` accessing local MySQL on `localhost`.
-- **Dynamic Site URLs**: Configured in `wp-config.php` via `HTTP_HOST` detection to eliminate hardcoded domain conflicts between local (`localhost/financial`) and production (`financial.51.222.83.114.sslip.io`).
-- **SSL / Reverse Proxy Support**: Configured to recognize `HTTP_X_FORWARDED_PROTO` headers sent by Coolify's Traefik edge proxy.
+## 5. Container Architecture (`docker-compose.yml`)
+Dual-container architecture managed by Docker Compose on Coolify:
+
+### `web` Service (WordPress + PHP 8.2 Apache)
+- **Dockerfile**: Base `wordpress:6.7-php8.2-apache` with `libzip`
+- **Internal Port**: Exposes port `80` (routed dynamically via Traefik reverse proxy)
+- **Volumes**:
+  - `wp_uploads`: `/var/www/html/wp-content/uploads`
+- **Environment Variables**:
+  - `WORDPRESS_DB_HOST`: `db:3306`
+  - `WORDPRESS_DB_NAME`: `financial`
+  - `WORDPRESS_DB_USER`: `financial_user`
+  - `WORDPRESS_DB_PASSWORD`: `financial_secure_password_2026`
+  - `WORDPRESS_TABLE_PREFIX`: `wp_`
+
+### `db` Service (MariaDB 10.11)
+- **Image**: `mariadb:10.11`
+- **Database Name**: `financial`
+- **User**: `financial_user`
+- **Volumes**:
+  - `db_data`: `/var/lib/mysql`
+  - `./sql`: `/docker-entrypoint-initdb.d`
 
 ---
 
-## 6. Continuous Deployment Workflow
-1. Developer edits code locally in `c:\xampp\htdocs\financial`.
-2. Commit and push changes to `main` on GitHub:
-   ```bash
-   git add .
-   git commit -m "Update site features"
-   git push origin main
-   ```
-3. GitHub sends a webhook POST request to Coolify's deployment endpoint.
-4. Coolify initiates a zero-downtime rolling container rebuild and deploys to the live server URL.
+## 6. Smart Multi-Environment Configuration
+The `wp-config.php` file includes smart environment detection:
+1. **Host-Based Switching**: Automatically switches database credentials and host between local XAMPP (`localhost`, `root`, blank password) and live container (`db:3306`, `financial_user`).
+2. **Reverse Proxy SSL Support**: Transparently detects `HTTP_X_FORWARDED_PROTO` headers behind Coolify's Traefik reverse proxy to ensure proper HTTPS operation.
+3. **Dynamic Site URL**: Uses the current request's `HTTP_HOST` so assets and navigation never break when switching between local and live URLs.
+4. **Auto-Seeding**: Checks on container startup if the database tables exist; if empty, automatically imports `sql/init.sql` via MySQLi multi-query to ensure zero-touch deployments.
