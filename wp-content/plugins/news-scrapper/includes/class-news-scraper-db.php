@@ -244,4 +244,73 @@ class News_Scraper_DB {
 
         return compact('active_feeds', 'total_feeds', 'discovered', 'processing', 'posted', 'failed');
     }
+
+    /**
+     * Flush scraped data: Truncate queue, delete generated posts, delete .md archive files
+     *
+     * @param bool $delete_posts  Whether to delete posts created by scraper
+     * @param bool $delete_feeds  Whether to delete configured feeds
+     * @return array Summary of flushed items
+     */
+    public static function flush_all_data($delete_posts = true, $delete_feeds = false) {
+        global $wpdb;
+        $queue_table = self::queue_table();
+        $feeds_table = self::feeds_table();
+        $logs_table  = self::logs_table();
+
+        // 1. Delete generated WordPress posts if requested
+        $deleted_posts_count = 0;
+        if ($delete_posts) {
+            $post_ids = $wpdb->get_col("
+                SELECT DISTINCT post_id FROM {$wpdb->postmeta} 
+                WHERE meta_key IN ('_news_scraper_feed_id', '_news_scraper_original_url', '_news_scraper_hash')
+            ");
+
+            if (!empty($post_ids)) {
+                foreach ($post_ids as $pid) {
+                    wp_delete_post(intval($pid), true); // Force bypass trash
+                    $deleted_posts_count++;
+                }
+            }
+        }
+
+        // 2. Count and truncate queue table
+        $flushed_queue_count = (int) $wpdb->get_var("SELECT COUNT(*) FROM $queue_table");
+        $wpdb->query("TRUNCATE TABLE $queue_table");
+
+        // 3. Clear logs table
+        $wpdb->query("TRUNCATE TABLE $logs_table");
+
+        // 4. Optionally clear feeds table
+        $flushed_feeds_count = 0;
+        if ($delete_feeds) {
+            $flushed_feeds_count = (int) $wpdb->get_var("SELECT COUNT(*) FROM $feeds_table");
+            $wpdb->query("TRUNCATE TABLE $feeds_table");
+        }
+
+        // 5. Clean scraped markdown archive files on disk
+        $deleted_files_count = 0;
+        $uploads_base = defined('NEWS_SCRAPPER_UPLOADS_DIR') ? NEWS_SCRAPPER_UPLOADS_DIR : (wp_upload_dir()['basedir'] . '/news-scraper');
+        foreach (array('/listings', '/articles') as $sub) {
+            $dir = $uploads_base . $sub;
+            if (is_dir($dir)) {
+                $files = glob($dir . '/*');
+                if (is_array($files)) {
+                    foreach ($files as $file) {
+                        if (is_file($file)) {
+                            @unlink($file);
+                            $deleted_files_count++;
+                        }
+                    }
+                }
+            }
+        }
+
+        return array(
+            'queue_items'    => $flushed_queue_count,
+            'posts_deleted'  => $deleted_posts_count,
+            'files_deleted'  => $deleted_files_count,
+            'feeds_deleted'  => $flushed_feeds_count,
+        );
+    }
 }

@@ -24,6 +24,7 @@ class News_Scraper_Admin {
         add_action('wp_ajax_news_scraper_process_queue', array($this, 'ajax_process_queue'));
         add_action('wp_ajax_news_scraper_import_csv', array($this, 'ajax_import_csv'));
         add_action('wp_ajax_news_scraper_save_settings', array($this, 'ajax_save_settings'));
+        add_action('wp_ajax_news_scraper_flush_data', array($this, 'ajax_flush_data'));
     }
 
     /**
@@ -268,5 +269,30 @@ class News_Scraper_Admin {
         }
 
         wp_send_json_success();
+    }
+
+    /**
+     * AJAX: Flush all scraped data (queue, posts, markdown archive)
+     */
+    public function ajax_flush_data() {
+        check_ajax_referer('news_scraper_admin_nonce', 'nonce');
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Permission denied');
+        }
+
+        $delete_posts = !empty($_POST['delete_posts']);
+        $delete_feeds = !empty($_POST['delete_feeds']);
+
+        $res = News_Scraper_DB::flush_all_data($delete_posts, $delete_feeds);
+
+        wp_send_json_success(array(
+            'message' => sprintf(
+                __('Flushed successfully! Queue items cleared: %d, Posts deleted: %d, Archive files deleted: %d', 'news-scrapper'),
+                $res['queue_items'],
+                $res['posts_deleted'],
+                $res['files_deleted']
+            ),
+            'stats'   => $res,
+        ));
     }
 }

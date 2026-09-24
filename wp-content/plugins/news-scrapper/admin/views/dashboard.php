@@ -209,9 +209,14 @@ Tech Stocks,https://techcrunch.com/category/startups/,"Technology > Venture Capi
                 <h2 style="margin:0;font-size:16px;"><?php esc_html_e('Discovered & Processed Article Queue', 'news-scrapper'); ?></h2>
                 <p style="color:#64748b;font-size:13px;margin:4px 0 0 0;"><?php esc_html_e('Articles are enqueued by the 8-hour listing crawler and processed every 3-5 minutes by the Gemini AI worker.', 'news-scrapper'); ?></p>
             </div>
-            <button type="button" class="ns-btn ns-btn-primary ns-process-queue-now" style="background:#059669;border-color:#059669;">
-                <span class="dashicons dashicons-update"></span> <?php esc_html_e('Process Queue Batch Now', 'news-scrapper'); ?>
-            </button>
+            <div style="display:flex;gap:8px;">
+                <button type="button" class="ns-btn ns-btn-secondary ns-btn-flush-data" style="color:#ef4444;border-color:#fca5a5;" title="Flush all queued items and generated posts">
+                    <span class="dashicons dashicons-trash"></span> <?php esc_html_e('Flush Scraped Data', 'news-scrapper'); ?>
+                </button>
+                <button type="button" class="ns-btn ns-btn-primary ns-process-queue-now" style="background:#059669;border-color:#059669;">
+                    <span class="dashicons dashicons-update"></span> <?php esc_html_e('Process Queue Batch Now', 'news-scrapper'); ?>
+                </button>
+            </div>
         </div>
 
         <?php if (!empty($queue)): ?>
@@ -318,6 +323,18 @@ Tech Stocks,https://techcrunch.com/category/startups/,"Technology > Venture Capi
                 <?php esc_html_e('Save Settings', 'news-scrapper'); ?>
             </button>
         </form>
+
+        <hr style="margin:32px 0 24px 0;border:0;border-top:1px solid #e2e8f0;max-width:680px;">
+
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:18px 22px;max-width:680px;">
+            <h3 style="margin:0 0 6px 0;color:#991b1b;font-size:15px;"><?php esc_html_e('Danger Zone: Flush Scraped Data', 'news-scrapper'); ?></h3>
+            <p style="color:#7f1d1d;font-size:13px;margin:0 0 14px 0;">
+                <?php esc_html_e('Flush all queued items, discovered links, scraped markdown files, and automatically generated posts. Configured feeds remain saved so you can run fresh crawls anytime.', 'news-scrapper'); ?>
+            </p>
+            <button type="button" class="ns-btn ns-btn-flush-data" style="background:#dc2626;color:#fff;border-color:#dc2626;padding:8px 18px;">
+                <span class="dashicons dashicons-trash"></span> <?php esc_html_e('Flush All Scraped Data Now', 'news-scrapper'); ?>
+            </button>
+        </div>
     </div>
 
 </div>

@@ -268,4 +268,33 @@ jQuery(document).ready(function($) {
             }
         });
     });
+
+    // Flush Scraped Data
+    $(document).on('click', '.ns-btn-flush-data', function() {
+        if (!confirm('Are you sure you want to flush all queued items, discovered links, scraped markdown archive files, and test posts?\n\n(Configured feeds will be preserved)')) {
+            return;
+        }
+
+        var $btn = $(this);
+        var originalText = $btn.html();
+        $btn.prop('disabled', true).html('<span class="spinner is-active" style="float:none;margin:0 4px 0 0;"></span> Flushing...');
+
+        $.post(newsScraperVars.ajaxurl, {
+            action: 'news_scraper_flush_data',
+            nonce: newsScraperVars.nonce,
+            delete_posts: 1,
+            delete_feeds: 0
+        }, function(res) {
+            $btn.prop('disabled', false).html(originalText);
+            if (res.success && res.data) {
+                alert(res.data.message || 'Scraped data flushed successfully.');
+                location.reload();
+            } else {
+                alert('Flush failed: ' + (res.data || 'Unknown error'));
+            }
+        }).fail(function() {
+            $btn.prop('disabled', false).html(originalText);
+            alert('Request failed or server timeout.');
+        });
+    });
 });
