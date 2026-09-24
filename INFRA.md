@@ -17,12 +17,14 @@
 
 ## 2. WordPress Application & Admin Details
 - **Site Title**: `Financial`
+- **Live Website URL**: [http://financial.51.222.83.114.sslip.io/](http://financial.51.222.83.114.sslip.io/)
+- **Live Admin Login URL**: [http://financial.51.222.83.114.sslip.io/wp-login.php](http://financial.51.222.83.114.sslip.io/wp-login.php) (or `/wp-admin/`)
+- **Local Admin Login URL**: `http://localhost/financial/wp-login.php`
+- **Admin Username**: `admin`
+- **Admin Password**: `shadab@digiflute`
 - **Admin Email**: `admin@example.com`
-- **Live Admin Login URL**: [http://financial.51.222.83.114.sslip.io/wp-admin/](http://financial.51.222.83.114.sslip.io/wp-admin/)
-- **Local Admin Login URL**: `http://localhost/financial/wp-admin/`
-- **Default Admin Username**: `admin`
-- **Admin Password**: `shadab@digiflute` (or configured via `WORDPRESS_ADMIN_PASSWORD`)
 - **User Role**: `Administrator` (User ID: 1, Level: 10)
+- **Login Verification**: Tested & Verified OK (HTTP 302 Redirect to `/wp-admin/`)
 - **Active Theme**: `Bootscore Child` (`bootscore-child`)
 - **Parent Framework Theme**: `Bootscore` (`bootscore`)
 - **Table Prefix**: `wp_`
