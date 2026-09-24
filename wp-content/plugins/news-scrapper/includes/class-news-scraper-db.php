@@ -75,7 +75,8 @@ class News_Scraper_DB {
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL,
             PRIMARY KEY (id),
-            UNIQUE KEY article_hash (article_hash),
+            UNIQUE KEY feed_article (feed_id, article_hash),
+            KEY article_hash (article_hash),
             KEY feed_id (feed_id),
             KEY status (status)
         ) $charset_collate;";
@@ -160,8 +161,8 @@ class News_Scraper_DB {
         $table = self::queue_table();
         $hash = hash('sha256', esc_url_raw($article_url));
 
-        // Check if exists
-        $exists = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table WHERE article_hash = %s", $hash));
+        // Check if exists for this feed
+        $exists = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table WHERE feed_id = %d AND article_hash = %s", $feed_id, $hash));
         if ($exists) {
             return false;
         }

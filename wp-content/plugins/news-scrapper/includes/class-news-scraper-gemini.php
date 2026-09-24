@@ -104,25 +104,83 @@ class News_Scraper_Gemini {
     protected function fallback_clean_content($raw_headline, $markdown_content) {
         $lines = explode("\n", $markdown_content);
         $html = '';
-        $tags = array();
+        $in_list = false;
 
         foreach ($lines as $line) {
-            $line = trim($line);
-            if (empty($line) || strpos($line, '![') === 0) {
+            $trimmed = trim($line);
+
+            if (empty($trimmed)) {
+                if ($in_list) {
+                    $html .= "</ul>\n";
+                    $in_list = false;
+                }
                 continue;
             }
-            if (preg_match('/^#{1,3}\s+(.+)$/', $line, $m)) {
-                $html .= '<h3>' . esc_html($m[1]) . "</h3>\n";
-            } else {
-                $html .= '<p>' . esc_html($line) . "</p>\n";
+
+            // Exclude noise lines
+            if (preg_match('/^\[(?:Skip|Livestream|Watchlist|Sign In|Create free|Menu|Watch Now|Listen|Zoom In)/i', $trimmed)) {
+                continue;
             }
+
+            // Headings
+            if (preg_match('/^#\s+(.+)$/', $trimmed, $m)) {
+                if ($in_list) { $html .= "</ul>\n"; $in_list = false; }
+                // Skip duplicating main headline as H2
+                if (stripos($trimmed, substr($raw_headline, 0, 20)) === false) {
+                    $html .= '<h2>' . esc_html($m[1]) . "</h2>\n";
+                }
+                continue;
+            }
+            if (preg_match('/^#{2,4}\s+(.+)$/', $trimmed, $m)) {
+                if ($in_list) { $html .= "</ul>\n"; $in_list = false; }
+                $html .= '<h3>' . esc_html($m[1]) . "</h3>\n";
+                continue;
+            }
+
+            // Bullet Lists
+            if (preg_match('/^[\*\-]\s+(.+)$/', $trimmed, $m)) {
+                if (!$in_list) {
+                    $html .= "<ul>\n";
+                    $in_list = true;
+                }
+                $item_text = $this->format_inline_markdown($m[1]);
+                $html .= '  <li>' . $item_text . "</li>\n";
+                continue;
+            }
+
+            if ($in_list) {
+                $html .= "</ul>\n";
+                $in_list = false;
+            }
+
+            // Inline Image
+            if (preg_match('/^!\[(.*?)\]\((https?:\/\/[^\s\)]+)\)$/', $trimmed, $m)) {
+                $alt = esc_attr($m[1]);
+                $src = esc_url($m[2]);
+                $html .= '<p class="news-scraped-inline-image"><img src="' . $src . '" alt="' . $alt . '" class="img-fluid rounded" /></p>' . "\n";
+                continue;
+            }
+
+            // Blockquote
+            if (preg_match('/^>\s+(.+)$/', $trimmed, $m)) {
+                $html .= '<blockquote>' . $this->format_inline_markdown($m[1]) . "</blockquote>\n";
+                continue;
+            }
+
+            // Standard Paragraph
+            $para = $this->format_inline_markdown($trimmed);
+            $html .= '<p>' . $para . "</p>\n";
         }
 
-        // Generate fallback tags from headline words
+        if ($in_list) {
+            $html .= "</ul>\n";
+        }
+
+        // Generate tags from headline and text
         $words = array_filter(explode(' ', strtolower(preg_replace('/[^a-zA-Z0-9\s]/', '', $raw_headline))), function($w) {
-            return strlen($w) > 4 && !in_array($w, array('about', 'their', 'which', 'would', 'there', 'financial', 'market'));
+            return strlen($w) > 4 && !in_array($w, array('about', 'their', 'which', 'would', 'there', 'financial', 'market', 'stock', 'global', 'today', 'after'));
         });
-        $tags = array_slice(array_unique($words), 0, 4);
+        $tags = array_slice(array_unique(array_values($words)), 0, 5);
 
         return array(
             'success'      => true,
@@ -131,5 +189,23 @@ class News_Scraper_Gemini {
             'tags'         => $tags,
             'model_used'   => 'rule-based-fallback',
         );
+    }
+
+    /**
+     * Format inline markdown: bold, italic, links
+     */
+    protected function format_inline_markdown($text) {
+        // [Link Text](URL)
+        $text = preg_replace_callback('/\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/', function($m) {
+            return '<a href="' . esc_url($m[2]) . '" target="_blank" rel="noopener nofollow">' . esc_html($m[1]) . '</a>';
+        }, $text);
+
+        // Bold **text**
+        $text = preg_replace('/\*\*([^*]+)\*\*/', '<strong>$1</strong>', $text);
+
+        // Italic *text*
+        $text = preg_replace('/(?<!\*)\*([^*]+)\*(?!\*)/', '<em>$1</em>', $text);
+
+        return wp_kses_post($text);
     }
 }

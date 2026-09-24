@@ -124,8 +124,10 @@ class News_Scraper_Cron {
             // Step 3: Gemini Lite AI Rewrite
             $rewritten = $gemini->rewrite_article($scraped['headline'], $scraped['markdown']);
 
+            $final_headline = !empty($rewritten['headline']) ? $rewritten['headline'] : (!empty($scraped['headline']) ? $scraped['headline'] : (!empty($item['title_raw']) ? $item['title_raw'] : 'Financial Market Report'));
+
             $article_payload = array(
-                'headline'       => $rewritten['headline'],
+                'headline'       => $final_headline,
                 'content_html'   => $rewritten['content_html'],
                 'tags'           => $rewritten['tags'],
                 'source_url'     => $item['article_url'],
