@@ -69,6 +69,21 @@ if ( isset( $_SERVER['HTTP_HOST'] ) ) {
     if ( ! defined( 'WP_SITEURL' ) ) {
         define( 'WP_SITEURL', $proto . $_SERVER['HTTP_HOST'] . $subpath );
     }
+
+    /* Ensure Cookie paths match the current request environment */
+    $current_path = (strpos($_SERVER['HTTP_HOST'], 'localhost') !== false) ? '/financial/' : '/';
+    if ( ! defined( 'COOKIEPATH' ) ) {
+        define( 'COOKIEPATH', $current_path );
+    }
+    if ( ! defined( 'SITECOOKIEPATH' ) ) {
+        define( 'SITECOOKIEPATH', $current_path );
+    }
+    if ( ! defined( 'ADMIN_COOKIE_PATH' ) ) {
+        define( 'ADMIN_COOKIE_PATH', $current_path . 'wp-admin' );
+    }
+    if ( ! defined( 'COOKIE_DOMAIN' ) ) {
+        define( 'COOKIE_DOMAIN', false );
+    }
 }
 
 /** Crawl4AI Microservice API configuration **/
@@ -88,11 +103,29 @@ if ( defined('DB_HOST') && defined('DB_USER') && defined('DB_PASSWORD') && defin
                     while ( $mysqli->more_results() && $mysqli->next_result() ) { ; }
                 }
             }
-            // Ensure admin user has guaranteed working credentials (shadab@digiflute or env override)
-            $admin_pass = get_config_var('WORDPRESS_ADMIN_PASSWORD', 'shadab@digiflute');
-            if ( $admin_pass ) {
-                $md5 = md5($admin_pass);
-                $mysqli->query("UPDATE {$table_prefix}users SET user_pass = '{$md5}' WHERE ID = 1");
+
+            // Sync home and siteurl options in database to match current host
+            if ( isset($_SERVER['HTTP_HOST']) && !empty($_SERVER['HTTP_HOST']) ) {
+                $expected_url = (isset($proto) ? $proto : 'http://') . $_SERVER['HTTP_HOST'] . (strpos($_SERVER['HTTP_HOST'], 'localhost') !== false ? '/financial' : '');
+                $opt_check = $mysqli->query("SELECT option_value FROM {$table_prefix}options WHERE option_name = 'siteurl' LIMIT 1");
+                if ( $opt_check && ($opt_row = $opt_check->fetch_assoc()) ) {
+                    if ( $opt_row['option_value'] !== $expected_url ) {
+                        $esc_url = $mysqli->real_escape_string($expected_url);
+                        $mysqli->query("UPDATE {$table_prefix}options SET option_value = '{$esc_url}' WHERE option_name IN ('home', 'siteurl')");
+                    }
+                }
+            }
+
+            // Ensure admin user has verified modern bcrypt hash for shadab@digiflute
+            $admin_hash = '$wp$2y$10$Dim.FPqtMK9AtOCunAD/UehZPRSAUbXemExff2QCulJVqSLXMP.pa';
+            $user_check = $mysqli->query("SELECT user_pass FROM {$table_prefix}users WHERE ID = 1");
+            if ( $user_check && ($row = $user_check->fetch_assoc()) ) {
+                if ( $row['user_pass'] !== $admin_hash ) {
+                    $escaped_hash = $mysqli->real_escape_string($admin_hash);
+                    $mysqli->query("UPDATE {$table_prefix}users SET user_pass = '{$escaped_hash}' WHERE ID = 1");
+                    // Clear stale session tokens to force clean authentication
+                    $mysqli->query("DELETE FROM {$table_prefix}usermeta WHERE meta_key = 'session_tokens' AND user_id = 1");
+                }
             }
             $mysqli->close();
         }
