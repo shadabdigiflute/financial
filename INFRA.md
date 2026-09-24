@@ -125,3 +125,127 @@ The Financial project integrates with the shared Crawl4AI headless scraping micr
   ```bash
   php pipeline/crawl_financial_data.php https://finance.yahoo.com/news --import-wp
   ```
+
+---
+
+## 9. News Scrapper Plugin: Architecture & Implementation Plan
+
+### 9.1 Overview & Core Objectives
+A standalone WordPress plugin (`news-scrapper`) providing an automated, enterprise-grade news scraping, AI rewriting, and publishing pipeline:
+- **Scraping Engine**: Crawl4AI microservice running on Coolify (`http://crawl4ai.51.222.83.114.sslip.io`).
+- **AI Rewriter**: Google Gemini Lite model (`gemini-2.0-flash-lite` or `gemini-1.5-flash`) for lightning-fast, factual rewriting at minimal cost.
+- **Publishing & Storage**: Full markdown archival on disk (`wp-content/uploads/news-scraper/`), automatic WordPress post creation with featured image sideloading, hierarchical categories, and tags.
+- **Automation**: Individual recurring cron execution every 4 hours (`every_4_hours`) per feed.
+
+---
+
+### 9.2 Database Architecture (Custom Dedicated Tables)
+To avoid overloading `wp_options` and provide high-performance queue management:
+
+1. **`wp_news_scraper_feeds`**:
+   - `id` (BIGINT, PK, AI)
+   - `feed_name` (VARCHAR 255)
+   - `source_url` (TEXT)
+   - `category_ids` (TEXT, JSON array of WP category IDs)
+   - `pagination_depth` (INT, default 3)
+   - `post_status` (VARCHAR 20, default 'draft')
+   - `status` (VARCHAR 20: 'active', 'paused')
+   - `cron_interval` (INT, default 14400 seconds / 4 hours)
+   - `last_run_at` (DATETIME)
+   - `next_run_at` (DATETIME)
+   - `created_at` (DATETIME)
+
+2. **`wp_news_scraper_queue`**:
+   - `id` (BIGINT, PK, AI)
+   - `feed_id` (BIGINT, FK)
+   - `article_url` (TEXT)
+   - `article_hash` (VARCHAR 64, UNIQUE index for deduplication)
+   - `title_raw` (TEXT)
+   - `md_file_path` (TEXT)
+   - `status` (VARCHAR 20: 'discovered', 'scraped', 'rewritten', 'posted', 'failed')
+   - `post_id` (BIGINT, null until created)
+   - `error_message` (TEXT)
+   - `created_at` (DATETIME)
+   - `updated_at` (DATETIME)
+
+3. **`wp_news_scraper_logs`**:
+   - `id`, `feed_id`, `action`, `items_processed`, `duration_sec`, `status`, `log_time`.
+
+---
+
+### 9.3 Module Breakdown & Implementation Steps
+
+#### Step 1: Plugin Scaffold & UI Foundation (`wp-content/plugins/news-scrapper/`)
+- `news-scrapper.php`: Main bootstrap file, activation table installer, deactivation hooks.
+- `includes/class-db.php`: Database schema installer and CRUD helpers.
+- `includes/class-cron.php`: Registers custom 4-hour interval (`news_scraper_every_4_hours`) and schedules feed workers.
+- `admin/css/admin.css` & `admin/js/admin.js`: Modern CSS design system (glassmorphism cards, badges, realtime progress bars).
+- `admin/views/`:
+  - `dashboard.php`: Live health metrics, active feeds counter, recent runs, queue status.
+  - `feeds-list.php`: Table of all feeds with status badges, run now buttons, edit/delete.
+  - `feed-form.php`: Feed configuration modal/page with nested hierarchical Category checkboxes.
+  - `csv-import.php`: Drag-and-drop CSV importer with live preview.
+  - `settings.php`: Crawl4AI endpoints, Gemini API Key, default post status.
+
+#### Step 2: Hierarchical Category & CSV Importer
+- **Category Tree UI**: Renders all WordPress categories and subcategories in an expandable tree view with checkboxes.
+- **Recursive CSV Importer**:
+  - Accepts CSV columns: `Feed Name`, `Target URL`, `Categories`, `Pagination Depth`, `Post Status`.
+  - Column `Categories` format: e.g. `Markets > Forex > Central Banks; Global Economy > Trade`.
+  - Parses delimiter `>` and dynamically checks `term_exists()`. If parent or child doesn't exist at any depth, creates terms recursively with `wp_insert_term(..., 'category', ['parent' => $parent_id])`.
+
+#### Step 3: Crawl4AI Listing & Pagination Scraper
+- `includes/class-scraper-listing.php`:
+  - Fetches category/listing URL via Crawl4AI endpoint `/html` and `/md`.
+  - Detects pagination pattern (e.g. `page/2/`, `?p=2`, next button anchors).
+  - Iterates up to configured `pagination_depth`.
+  - Discovers article links, normalizes absolute URLs, and inserts new records into `wp_news_scraper_queue` (ignoring already existing URLs via `article_hash`).
+  - Saves listing snapshot markdown in `wp-content/uploads/news-scraper/feeds/<feed_id>/listings/listing_<timestamp>.md`.
+
+#### Step 4: Deep Article A-to-Z Scraper
+- `includes/class-scraper-article.php`:
+  - Pulls queued articles in batch.
+  - Calls Crawl4AI with `filter=fit` and extract options to get clean full markdown and images.
+  - Extracts metadata: Main Headline, Lead paragraph, full body text, author, publish date, and featured image URL.
+  - Saves individual article markdown to:
+    `wp-content/uploads/news-scraper/feeds/<feed_id>/articles/<article_hash>.md`.
+  - Guarantees 0% data loss by storing raw markdown alongside parsed structure.
+
+#### Step 5: Gemini Lite AI Content Rewriter
+- `includes/class-gemini-rewriter.php`:
+  - Uses model: `gemini-2.0-flash-lite` (highest speed, lowest token cost).
+  - Strict System Prompt:
+    ```text
+    You are a professional financial and news journalist.
+    Rewrite the provided news article for engaging editorial flow, clean structure, and readability.
+    STRICT CONSTRAINT: Do NOT invent, assume, or add any external information or facts.
+    Strictly use only the information present in the scraped article.
+    Generate a compelling headline, clean HTML body with subheadings (h2, h3) and paragraphs, and 3 to 6 high-relevance tags.
+    Output JSON format: { "headline": "...", "content_html": "...", "tags": ["tag1", "tag2"] }
+    ```
+  - Fallback logic to protect against rate limits or temporary network issues.
+
+#### Step 6: WordPress Publisher & Media Sideloading
+- `includes/class-publisher.php`:
+  - Downloads article featured image and inserts into WordPress Media Library using `media_sideload_image()`.
+  - Assigns featured image ID to post (`set_post_thumbnail()`).
+  - Calls `wp_insert_post()` with rewritten headline, body HTML, post status (`draft` or `publish`).
+  - Sets hierarchical categories (`wp_set_post_categories()`).
+  - Sets generated tags (`wp_set_post_tags()`).
+  - Saves tracking metadata: `_source_url`, `_feed_id`, `_original_md_path`.
+  - Updates queue status to `posted`.
+
+#### Step 7: Automated 4-Hour Cron & Background Queue Runner
+- `cron/queue-worker.php`:
+  - Runs in non-blocking batches of 5-10 articles to ensure execution stays well under PHP execution limits.
+  - Reschedules smoothly every 4 hours (`every_4_hours`).
+  - Admin button "Run Feed Now" triggers AJAX background worker with real-time log streaming.
+
+---
+
+### 9.4 Verification & Quality Gates
+1. Unit test category tree generation and CSV importer with multi-depth subcategories.
+2. Verify Crawl4AI connection and listing pagination parsing on sample news sources.
+3. Verify Gemini Lite API integration and strict factual preservation prompt.
+4. Verify featured image sideloading and post creation.
+5. Verify 4-hour WP-Cron schedule registration.
