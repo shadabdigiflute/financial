@@ -31,27 +31,38 @@ class News_Scraper_Gemini {
      *
      * @param string $raw_headline
      * @param string $markdown_content
+     * @param array  $datapoints Optional structured datapoints
      * @return array
      */
-    public function rewrite_article($raw_headline, $markdown_content) {
+    public function rewrite_article($raw_headline, $markdown_content, $datapoints = array()) {
         if (!$this->is_configured()) {
             // Fallback: Clean formatting without AI if key is missing
-            return $this->fallback_clean_content($raw_headline, $markdown_content);
+            return $this->fallback_clean_content($raw_headline, $markdown_content, $datapoints);
         }
 
         $endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/' . $this->model . ':generateContent?key=' . $this->api_key;
 
-        $prompt = "You are an expert news editor and financial journalist.\n";
-        $prompt .= "Your task is to REWRITE the following news article for editorial flow, professional structure, and clarity.\n\n";
+        $prompt  = "You are a senior financial news editor and investigative journalist.\n";
+        $prompt .= "Your task is to REWRITE the following news article into a comprehensive, highly engaging, and clear news report.\n\n";
         $prompt .= "CRITICAL MANDATORY RULES:\n";
-        $prompt .= "1. DO NOT invent, assume, extrapolate, or add ANY new facts, figures, dates, names, or quotes.\n";
-        $prompt .= "2. STRICTLY use only the information and facts already present in the source text below.\n";
-        $prompt .= "3. Structure the content with clean HTML tags: <h2> for sub-topics, <p> for paragraphs, and <ul>/<li> for bullet points if applicable.\n";
-        $prompt .= "4. Generate a strong, engaging news Headline based on the article.\n";
-        $prompt .= "5. Extract 3 to 6 high-relevance SEO tags (comma-separated strings) directly related to the topics discussed.\n";
-        $prompt .= "6. Return ONLY valid JSON format strictly matching this structure with NO extra markdown formatting:\n";
-        $prompt .= "{\n  \"headline\": \"Rewritten headline here\",\n  \"content_html\": \"<p>First paragraph...</p><h2>Subheading</h2><p>Second paragraph...</p>\",\n  \"tags\": [\"Tag 1\", \"Tag 2\", \"Tag 3\"]\n}\n\n";
-        $prompt .= "SOURCE ARTICLE:\n" . substr($markdown_content, 0, 10000);
+        $prompt .= "1. STRICT FACTUAL FIDELITY: DO NOT invent, assume, extrapolate, or add ANY new facts, figures, percentages, dates, names, or quotes.\n";
+        $prompt .= "2. STRUCTURE:\n";
+        $prompt .= "   - Include an executive summary callout box at the start: <div class=\"news-key-takeaways\"><h4>Key Takeaways</h4><ul><li>...</li></ul></div> with 3 to 5 core bullet points.\n";
+        $prompt .= "   - Break down the article body into logical thematic sections using <h2> and <h3> subheadings (e.g. Market Reactions, Economic Impact, Expert Outlook).\n";
+        $prompt .= "   - Use well-crafted, fluid paragraphs (<p>) preserving ALL exact dates, statistics, percentages, and dollar amounts.\n";
+        $prompt .= "   - Use <blockquote> for direct quotes from officials, executives, or analysts.\n";
+        $prompt .= "3. HEADLINE: Generate an authoritative, compelling news headline based directly on the story.\n";
+        $prompt .= "4. SEO TAGS: Extract 4 to 8 high-relevance topic tags directly related to the entities, sectors, and issues discussed.\n";
+        $prompt .= "5. Return ONLY a valid JSON object strictly matching this schema with NO markdown code blocks or wrapper text:\n";
+        $prompt .= "{\n  \"headline\": \"Engaging News Headline\",\n  \"content_html\": \"<div class=\\\"news-key-takeaways\\\"><h4>Key Takeaways</h4><ul><li>...</li></ul></div><h2>Section Heading</h2><p>Article narrative...</p>\",\n  \"tags\": [\"Tag 1\", \"Tag 2\", \"Tag 3\"]\n}\n\n";
+
+        if (!empty($datapoints['highlights'])) {
+            $prompt .= "SOURCE KEY HIGHLIGHTS:\n- " . implode("\n- ", $datapoints['highlights']) . "\n\n";
+        }
+        if (!empty($datapoints['author'])) {
+            $prompt .= "REPORTED BY: " . $datapoints['author'] . "\n\n";
+        }
+        $prompt .= "SOURCE ARTICLE CONTENT:\n" . substr($markdown_content, 0, 10000);
 
         $payload = array(
             'contents' => array(
@@ -76,7 +87,7 @@ class News_Scraper_Gemini {
         ));
 
         if (is_wp_error($response)) {
-            return $this->fallback_clean_content($raw_headline, $markdown_content);
+            return $this->fallback_clean_content($raw_headline, $markdown_content, $datapoints);
         }
 
         $body = json_decode(wp_remote_retrieve_body($response), true);
@@ -95,16 +106,25 @@ class News_Scraper_Gemini {
             }
         }
 
-        return $this->fallback_clean_content($raw_headline, $markdown_content);
+        return $this->fallback_clean_content($raw_headline, $markdown_content, $datapoints);
     }
 
     /**
      * Fallback parser when AI API is unavailable or returns an error
      */
-    protected function fallback_clean_content($raw_headline, $markdown_content) {
+    public static function fallback_clean_content($raw_headline, $markdown_content, $datapoints = array()) {
         $lines = explode("\n", $markdown_content);
         $html = '';
         $in_list = false;
+
+        // If structured highlights are available, add styled Key Takeaways box
+        if (!empty($datapoints['highlights']) && is_array($datapoints['highlights'])) {
+            $html .= "<div class=\"news-key-takeaways\">\n  <h4>Key Takeaways</h4>\n  <ul>\n";
+            foreach ($datapoints['highlights'] as $hl) {
+                $html .= '    <li>' . esc_html($hl) . "</li>\n";
+            }
+            $html .= "  </ul>\n</div>\n\n";
+        }
 
         foreach ($lines as $line) {
             $trimmed = trim($line);
@@ -143,7 +163,7 @@ class News_Scraper_Gemini {
                     $html .= "<ul>\n";
                     $in_list = true;
                 }
-                $item_text = $this->format_inline_markdown($m[1]);
+                $item_text = self::format_inline_markdown($m[1]);
                 $html .= '  <li>' . $item_text . "</li>\n";
                 continue;
             }
@@ -163,12 +183,12 @@ class News_Scraper_Gemini {
 
             // Blockquote
             if (preg_match('/^>\s+(.+)$/', $trimmed, $m)) {
-                $html .= '<blockquote>' . $this->format_inline_markdown($m[1]) . "</blockquote>\n";
+                $html .= '<blockquote>' . self::format_inline_markdown($m[1]) . "</blockquote>\n";
                 continue;
             }
 
             // Standard Paragraph
-            $para = $this->format_inline_markdown($trimmed);
+            $para = self::format_inline_markdown($trimmed);
             $html .= '<p>' . $para . "</p>\n";
         }
 
@@ -194,7 +214,7 @@ class News_Scraper_Gemini {
     /**
      * Format inline markdown: bold, italic, links
      */
-    protected function format_inline_markdown($text) {
+    public static function format_inline_markdown($text) {
         // [Link Text](URL)
         $text = preg_replace_callback('/\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/', function($m) {
             return '<a href="' . esc_url($m[2]) . '" target="_blank" rel="noopener nofollow">' . esc_html($m[1]) . '</a>';

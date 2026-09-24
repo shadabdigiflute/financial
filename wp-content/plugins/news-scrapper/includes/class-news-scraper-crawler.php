@@ -418,8 +418,55 @@ class News_Scraper_Crawler {
         $file_path = $upload_dir . '/' . $file_name;
         file_put_contents($file_path, $raw_markdown);
 
-        // Extract metadata
+        // Extract structured datapoints (Headline, Author, Date, Highlights, Clean Body, Images)
+        $datapoints = $this->extract_article_datapoints($result, $raw_markdown, $article_url);
+
+        // Extract content images
+        $images = array();
+        if (preg_match_all('/!\[(.*?)\]\((https?:\/\/[^\s\)]+)\)/i', $raw_markdown, $m, PREG_SET_ORDER)) {
+            foreach ($m as $match) {
+                $img_url = $match[2];
+                if (!preg_match('/avatar|icon|logo|pixel|banner|1x1|spacer|button/i', $img_url)) {
+                    $images[] = $img_url;
+                    if (empty($datapoints['featured_image'])) {
+                        $datapoints['featured_image'] = $img_url;
+                    }
+                }
+            }
+        }
+
+        // Update queue item in DB with structured datapoints
+        $update_fields = array(
+            'status'          => 'scraped',
+            'title_raw'       => $datapoints['headline'],
+            'author'          => $datapoints['author'],
+            'datapoints_json' => wp_json_encode($datapoints),
+            'md_file_path'    => $file_path,
+        );
+        if (!empty($datapoints['published_date'])) {
+            $update_fields['published_date'] = $datapoints['published_date'];
+        }
+        News_Scraper_DB::update_queue_item($queue_id, $update_fields);
+
+        return array(
+            'success'          => true,
+            'headline'         => $datapoints['headline'],
+            'markdown'         => $datapoints['clean_body'],
+            'raw_markdown'     => $raw_markdown,
+            'featured_image'   => $datapoints['featured_image'],
+            'all_images'       => $images,
+            'file_path'        => $file_path,
+            'metadata'         => $result['metadata'] ?? array(),
+            'datapoints'       => $datapoints,
+        );
+    }
+
+    /**
+     * Extract genuine structured datapoints from HTML, metadata, and markdown
+     */
+    public static function extract_article_datapoints($result, $raw_markdown, $article_url) {
         $metadata = $result['metadata'] ?? array();
+        $html = $result['html'] ?? '';
 
         // 1. Headline determination
         $headline = '';
@@ -430,49 +477,75 @@ class News_Scraper_Crawler {
         } elseif (preg_match('/^#\s+(.+)$/m', $raw_markdown, $m)) {
             $headline = trim($m[1]);
         }
+        $headline = preg_replace('/\s*[-|–]\s*(CNBC|Yahoo Finance|Reuters|TechCrunch|Bloomberg|MarketWatch|BBC News|CNN|Forbes|Wall Street Journal).*$/i', '', $headline);
 
-        // Clean headline from site suffixes (e.g., " | CNBC", " - Yahoo Finance")
-        $headline = preg_replace('/\s*[-|–]\s*(CNBC|Yahoo Finance|Reuters|TechCrunch|Bloomberg|MarketWatch|BBC News|CNN).*$/i', '', $headline);
-
-        // 2. High-res Featured Image determination
-        $featured_image = '';
-        if (!empty($metadata['og:image']) && filter_var($metadata['og:image'], FILTER_VALIDATE_URL)) {
-            $featured_image = $metadata['og:image'];
+        // 2. Author determination
+        $author = '';
+        if (!empty($metadata['author'])) {
+            $author = trim($metadata['author']);
+        } elseif (preg_match('/<meta[^>]+name=["\']author["\'][^>]+content=["\']([^"\']+)["\']/i', $html, $m)) {
+            $author = trim($m[1]);
+        } elseif (preg_match('/"@type"\s*:\s*"Person"\s*,\s*"name"\s*:\s*"([^"]+)"/i', $html, $m)) {
+            $author = trim($m[1]);
+        } elseif (preg_match('/(?:^|\n)(?:By|Author:)\s+([A-Z][a-zA-Z\.\s]{2,35})(?:\n|$)/i', $raw_markdown, $m)) {
+            $author = trim($m[1]);
         }
 
-        // 3. Extract content images
-        $images = array();
-        if (preg_match_all('/!\[(.*?)\]\((https?:\/\/[^\s\)]+)\)/i', $raw_markdown, $m, PREG_SET_ORDER)) {
-            foreach ($m as $match) {
-                $img_url = $match[2];
-                if (!preg_match('/avatar|icon|logo|pixel|banner|1x1|spacer|button/i', $img_url)) {
-                    $images[] = $img_url;
-                    if (empty($featured_image)) {
-                        $featured_image = $img_url;
-                    }
-                }
+        // 3. Published Date determination
+        $published_date = null;
+        $raw_date_str = '';
+        if (preg_match('/"(?:datePublished|uploadDate)"\s*:\s*"([^"]+)"/i', $html, $m)) {
+            $raw_date_str = $m[1];
+        } elseif (preg_match('/<meta[^>]+property=["\']article:published_time["\'][^>]+content=["\']([^"\']+)["\']/i', $html, $m)) {
+            $raw_date_str = $m[1];
+        } elseif (preg_match('/Published\s+([A-Za-z]+,?\s+[A-Za-z]+\s+\d{1,2},?\s+\d{4}[^\n<]*)/i', $raw_markdown, $m)) {
+            $raw_date_str = $m[1];
+        }
+        if (!empty($raw_date_str)) {
+            $ts = strtotime($raw_date_str);
+            if ($ts && $ts > 0) {
+                $published_date = date('Y-m-d H:i:s', $ts);
             }
         }
 
-        // 4. Extract and clean the actual editorial article body (strip nav and footer noise)
-        $cleaned_markdown = $this->extract_clean_article_body($raw_markdown, $headline);
+        // 4. Key Highlights determination
+        $highlights = array();
+        if (preg_match('/(?:Key Points|Key Takeaways|Highlights|At a Glance)\s*\n((?:\s*[\*\-]\s+[^\n]+\n?)+)/i', $raw_markdown, $m)) {
+            $bullet_lines = explode("\n", trim($m[1]));
+            foreach ($bullet_lines as $bl) {
+                $b_clean = trim(preg_replace('/^[\*\-]\s+/', '', trim($bl)));
+                if (!empty($b_clean) && strlen($b_clean) > 15) {
+                    $highlights[] = $b_clean;
+                }
+            }
+        }
+        if (empty($highlights) && !empty($metadata['description'])) {
+            $highlights[] = trim($metadata['description']);
+        }
 
-        // Update queue item in DB
-        News_Scraper_DB::update_queue_item($queue_id, array(
-            'status'       => 'scraped',
-            'title_raw'    => $headline,
-            'md_file_path' => $file_path,
-        ));
+        // 5. Featured Image determination
+        $featured_image = '';
+        if (!empty($metadata['og:image']) && filter_var($metadata['og:image'], FILTER_VALIDATE_URL)) {
+            $featured_image = $metadata['og:image'];
+        } elseif (!empty($metadata['twitter:image']) && filter_var($metadata['twitter:image'], FILTER_VALIDATE_URL)) {
+            $featured_image = $metadata['twitter:image'];
+        }
+
+        // 6. Clean Editorial Body
+        $clean_body = self::extract_clean_article_body($raw_markdown, $headline);
+
+        // 7. Source Domain
+        $source_domain = parse_url($article_url, PHP_URL_HOST);
 
         return array(
-            'success'          => true,
-            'headline'         => $headline,
-            'markdown'         => $cleaned_markdown,
-            'raw_markdown'     => $raw_markdown,
-            'featured_image'   => $featured_image,
-            'all_images'       => $images,
-            'file_path'        => $file_path,
-            'metadata'         => $metadata,
+            'headline'       => $headline,
+            'author'         => $author,
+            'published_date' => $published_date,
+            'highlights'     => $highlights,
+            'clean_body'     => $clean_body,
+            'featured_image' => $featured_image,
+            'source_domain'  => $source_domain,
+            'source_url'     => $article_url,
         );
     }
 
@@ -483,7 +556,7 @@ class News_Scraper_Crawler {
      * @param string $headline
      * @return string
      */
-    protected function extract_clean_article_body($raw_md, $headline = '') {
+    public static function extract_clean_article_body($raw_md, $headline = '') {
         $lines = explode("\n", $raw_md);
         $in_article = false;
         $article_lines = array();

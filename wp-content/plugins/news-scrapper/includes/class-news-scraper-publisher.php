@@ -39,21 +39,40 @@ class News_Scraper_Publisher {
             }
         }
 
+        // Author byline header
+        $byline_html = '';
+        if (!empty($article_data['author'])) {
+            $byline_html .= '<p class="news-scraper-byline"><small><strong>By ' . esc_html($article_data['author']) . '</strong>';
+            if (!empty($article_data['published_date'])) {
+                $byline_html .= ' &bull; <time datetime="' . esc_attr($article_data['published_date']) . '">' . esc_html(date_i18n(get_option('date_format'), strtotime($article_data['published_date']))) . '</time>';
+            }
+            $byline_html .= '</small></p>';
+        }
+
         // Add source citation at bottom
         if (!empty($source_url)) {
-            $content_html .= "\n\n<hr class=\"news-scraper-divider\"><p class=\"text-muted news-scraper-source\"><small><em>Source: <a href=\"" . esc_url($source_url) . "\" target=\"_blank\" rel=\"noopener nofollow\">" . esc_html($source_url) . "</a></em></small></p>";
+            $source_host = parse_url($source_url, PHP_URL_HOST);
+            $content_html .= "\n\n<hr class=\"news-scraper-divider\"><p class=\"text-muted news-scraper-source\"><small><em>Originally published on <a href=\"" . esc_url($source_url) . "\" target=\"_blank\" rel=\"noopener nofollow\">" . esc_html($source_host ?: $source_url) . "</a></em></small></p>";
         }
+
+        $final_content = $byline_html . $content_html;
 
         // Prepare post array
         $post_args = array(
             'post_title'    => sanitize_text_field($headline),
-            'post_content'  => wp_kses_post($content_html),
+            'post_content'  => wp_kses_post($final_content),
             'post_status'   => in_array($post_status, array('publish', 'draft', 'pending'), true) ? $post_status : 'draft',
             'post_author'   => get_current_user_id() ?: 1,
             'post_type'     => 'post',
             'post_category' => $category_ids,
             'tags_input'    => $tags,
         );
+
+        // Preserve genuine publication date if available
+        if (!empty($article_data['published_date'])) {
+            $post_args['post_date']     = $article_data['published_date'];
+            $post_args['post_date_gmt'] = get_gmt_from_date($article_data['published_date']);
+        }
 
         $post_id = wp_insert_post($post_args, true);
 
@@ -69,6 +88,9 @@ class News_Scraper_Publisher {
         update_post_meta($post_id, '_news_scraper_feed_id', intval($feed['id']));
         update_post_meta($post_id, '_news_scraper_queue_id', intval($queue_id));
         update_post_meta($post_id, '_news_scraper_source_url', esc_url_raw($source_url));
+        if (!empty($article_data['author'])) {
+            update_post_meta($post_id, '_news_scraper_author', sanitize_text_field($article_data['author']));
+        }
         if (!empty($article_data['md_file_path'])) {
             update_post_meta($post_id, '_news_scraper_md_file', sanitize_text_field($article_data['md_file_path']));
         }

@@ -122,13 +122,68 @@ jQuery(document).ready(function($) {
         });
     });
 
-    // Run Feed Now
+    // Crawl Feed Listing (Tier 1 - 8hr cycle)
+    $(document).on('click', '.ns-crawl-feed', function() {
+        var feedId = $(this).data('id');
+        var $btn = $(this);
+        var originalText = $btn.html();
+
+        $btn.prop('disabled', true).html('<span class="spinner is-active" style="float:none;margin:0 4px 0 0;"></span> Crawling...');
+
+        $.post(newsScraperVars.ajaxurl, {
+            action: 'news_scraper_crawl_feed',
+            nonce: newsScraperVars.nonce,
+            id: feedId
+        }, function(res) {
+            $btn.prop('disabled', false).html(originalText);
+            if (res.success && res.data) {
+                alert('Listing Crawled!\nDiscovered: ' + res.data.discovered_count + ' articles\nNew Enqueued: ' + res.data.new_enqueued + '\nTime: ' + res.data.duration_sec + 's\n\nQueued articles will be processed automatically by the 3-minute AI worker or you can click "Process Queue" to run now.');
+                location.reload();
+            } else {
+                alert('Crawl failed: ' + (res.data || 'Unknown error'));
+            }
+        }).fail(function() {
+            $btn.prop('disabled', false).html(originalText);
+            alert('Request timed out or encountered server error.');
+        });
+    });
+
+    // Process Queue Batch (Tier 2 - 3min AI Worker)
+    $(document).on('click', '#ns-btn-process-queue, .ns-process-queue-now', function() {
+        var $btn = $(this);
+        var originalText = $btn.html();
+
+        $btn.prop('disabled', true).html('<span class="spinner is-active" style="float:none;margin:0 4px 0 0;"></span> AI Processing...');
+
+        $.post(newsScraperVars.ajaxurl, {
+            action: 'news_scraper_process_queue',
+            nonce: newsScraperVars.nonce,
+            limit: 3
+        }, function(res) {
+            $btn.prop('disabled', false).html(originalText);
+            if (res.success && res.data) {
+                if (res.data.processed_count > 0) {
+                    alert('Queue Worker Finished!\nProcessed & Published: ' + res.data.processed_count + ' articles in ' + res.data.duration_sec + 's\nPost IDs: ' + res.data.post_ids.join(', '));
+                } else {
+                    alert('Queue is empty! No discovered articles are waiting.');
+                }
+                location.reload();
+            } else {
+                alert('Queue processing failed: ' + (res.data || 'Unknown error'));
+            }
+        }).fail(function() {
+            $btn.prop('disabled', false).html(originalText);
+            alert('Request timed out or encountered server error.');
+        });
+    });
+
+    // Run Full Feed Cycle (Crawl + Process)
     $(document).on('click', '.ns-run-feed', function() {
         var feedId = $(this).data('id');
         var $btn = $(this);
         var originalText = $btn.html();
 
-        $btn.prop('disabled', true).html('<span class="spinner is-active" style="float:none;margin:0 4px 0 0;"></span> Running...');
+        $btn.prop('disabled', true).html('<span class="spinner is-active" style="float:none;margin:0 4px 0 0;"></span> Running Full Cycle...');
 
         $.post(newsScraperVars.ajaxurl, {
             action: 'news_scraper_run_feed',

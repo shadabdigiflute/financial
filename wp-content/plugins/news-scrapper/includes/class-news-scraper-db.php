@@ -55,7 +55,7 @@ class News_Scraper_DB {
             pagination_depth INT(11) NOT NULL DEFAULT 3,
             post_status VARCHAR(20) NOT NULL DEFAULT 'draft',
             status VARCHAR(20) NOT NULL DEFAULT 'active',
-            cron_interval INT(11) NOT NULL DEFAULT 14400,
+            cron_interval INT(11) NOT NULL DEFAULT 28800,
             last_run_at DATETIME DEFAULT NULL,
             next_run_at DATETIME DEFAULT NULL,
             created_at DATETIME NOT NULL,
@@ -68,6 +68,9 @@ class News_Scraper_DB {
             article_url TEXT NOT NULL,
             article_hash VARCHAR(64) NOT NULL,
             title_raw TEXT DEFAULT NULL,
+            author VARCHAR(255) DEFAULT NULL,
+            published_date DATETIME DEFAULT NULL,
+            datapoints_json LONGTEXT DEFAULT NULL,
             md_file_path TEXT DEFAULT NULL,
             status VARCHAR(20) NOT NULL DEFAULT 'discovered',
             post_id BIGINT(20) UNSIGNED DEFAULT NULL,
@@ -130,7 +133,7 @@ class News_Scraper_DB {
             'pagination_depth' => isset($data['pagination_depth']) ? max(1, intval($data['pagination_depth'])) : 3,
             'post_status'      => isset($data['post_status']) && in_array($data['post_status'], array('publish', 'draft'), true) ? $data['post_status'] : 'draft',
             'status'           => isset($data['status']) && $data['status'] === 'paused' ? 'paused' : 'active',
-            'cron_interval'    => 14400, // 4 hours
+            'cron_interval'    => isset($data['cron_interval']) ? max(3600, intval($data['cron_interval'])) : 28800, // 8 hours
         );
 
         if ($id) {
@@ -156,7 +159,7 @@ class News_Scraper_DB {
     /**
      * Insert article into queue (with deduplication)
      */
-    public static function enqueue_article($feed_id, $article_url, $title_raw = '') {
+    public static function enqueue_article($feed_id, $article_url, $title_raw = '', $extra = array()) {
         global $wpdb;
         $table = self::queue_table();
         $hash = hash('sha256', esc_url_raw($article_url));
@@ -167,16 +170,22 @@ class News_Scraper_DB {
             return false;
         }
 
-        $inserted = $wpdb->insert($table, array(
+        $record = array(
             'feed_id'      => intval($feed_id),
             'article_url'  => esc_url_raw($article_url),
             'article_hash' => $hash,
             'title_raw'    => sanitize_text_field($title_raw),
+            'author'       => !empty($extra['author']) ? sanitize_text_field($extra['author']) : null,
             'status'       => 'discovered',
             'created_at'   => current_time('mysql'),
             'updated_at'   => current_time('mysql'),
-        ));
+        );
 
+        if (!empty($extra['published_date'])) {
+            $record['published_date'] = $extra['published_date'];
+        }
+
+        $inserted = $wpdb->insert($table, $record);
         return $inserted ? $wpdb->insert_id : false;
     }
 
@@ -229,9 +238,10 @@ class News_Scraper_DB {
         $active_feeds = (int) $wpdb->get_var("SELECT COUNT(*) FROM $feeds_t WHERE status = 'active'");
         $total_feeds  = (int) $wpdb->get_var("SELECT COUNT(*) FROM $feeds_t");
         $discovered   = (int) $wpdb->get_var("SELECT COUNT(*) FROM $queue_t WHERE status = 'discovered'");
+        $processing   = (int) $wpdb->get_var("SELECT COUNT(*) FROM $queue_t WHERE status = 'processing'");
         $posted       = (int) $wpdb->get_var("SELECT COUNT(*) FROM $queue_t WHERE status = 'posted'");
         $failed       = (int) $wpdb->get_var("SELECT COUNT(*) FROM $queue_t WHERE status = 'failed'");
 
-        return compact('active_feeds', 'total_feeds', 'discovered', 'posted', 'failed');
+        return compact('active_feeds', 'total_feeds', 'discovered', 'processing', 'posted', 'failed');
     }
 }

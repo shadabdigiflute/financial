@@ -30,6 +30,10 @@ $gemini_model   = get_option('news_scrapper_gemini_model', 'gemini-2.0-flash-lit
         </div>
 
         <div style="display:flex;gap:10px;align-items:center;">
+            <button type="button" id="ns-btn-process-queue" class="ns-btn" style="background:#059669;color:#fff;border-color:#059669;" title="Process pending articles in queue with AI">
+                <span class="dashicons dashicons-update"></span>
+                <?php esc_html_e('Process Queue Now', 'news-scrapper'); ?>
+            </button>
             <button type="button" id="ns-btn-add-feed" class="ns-btn ns-btn-primary">
                 <span class="dashicons dashicons-plus-alt2"></span>
                 <?php esc_html_e('Add New Feed', 'news-scrapper'); ?>
@@ -42,7 +46,7 @@ $gemini_model   = get_option('news_scrapper_gemini_model', 'gemini-2.0-flash-lit
         <div class="ns-stat-card blue">
             <div class="ns-stat-label"><?php esc_html_e('Active Feeds', 'news-scrapper'); ?></div>
             <div class="ns-stat-val"><?php echo intval($stats['active_feeds']); ?> / <?php echo intval($stats['total_feeds']); ?></div>
-            <div class="ns-stat-sub"><?php esc_html_e('Every 4 Hours Cron Enabled', 'news-scrapper'); ?></div>
+            <div class="ns-stat-sub"><?php esc_html_e('Every 8 Hours Listing Crawl', 'news-scrapper'); ?></div>
         </div>
 
         <div class="ns-stat-card green">
@@ -54,7 +58,7 @@ $gemini_model   = get_option('news_scrapper_gemini_model', 'gemini-2.0-flash-lit
         <div class="ns-stat-card amber">
             <div class="ns-stat-label"><?php esc_html_e('In Queue / Discovered', 'news-scrapper'); ?></div>
             <div class="ns-stat-val"><?php echo intval($stats['discovered']); ?></div>
-            <div class="ns-stat-sub"><?php esc_html_e('Pending next batch run', 'news-scrapper'); ?></div>
+            <div class="ns-stat-sub"><?php esc_html_e('AI Worker runs every 3-5 min', 'news-scrapper'); ?></div>
         </div>
 
         <div class="ns-stat-card purple">
@@ -91,7 +95,7 @@ $gemini_model   = get_option('news_scrapper_gemini_model', 'gemini-2.0-flash-lit
     <div id="tab-feeds" class="ns-panel active">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
             <h2 style="margin:0;font-size:16px;"><?php esc_html_e('Active News Sources & Automated Feeds', 'news-scrapper'); ?></h2>
-            <span style="font-size:12px;color:#64748b;"><?php esc_html_e('All active feeds automatically run via background cron every 4 hours.', 'news-scrapper'); ?></span>
+            <span style="font-size:12px;color:#64748b;"><?php esc_html_e('Tier 1: Checks source URLs every 8 hours. Tier 2: AI rewrites & publishes every 3-5 minutes.', 'news-scrapper'); ?></span>
         </div>
 
         <?php if (!empty($feeds)): ?>
@@ -135,8 +139,11 @@ $gemini_model   = get_option('news_scrapper_gemini_model', 'gemini-2.0-flash-lit
                         <td><span class="ns-badge" style="background:#f1f5f9;color:#334155;"><?php echo ucfirst(esc_html($feed['post_status'])); ?></span></td>
                         <td>
                             <div style="display:flex;gap:6px;">
-                                <button type="button" class="ns-btn ns-btn-primary ns-btn-sm ns-run-feed" data-id="<?php echo esc_attr($feed['id']); ?>" title="Run Crawl & Rewrite Now">
-                                    <span class="dashicons dashicons-controls-play" style="font-size:14px;width:14px;height:14px;"></span> Run Now
+                                <button type="button" class="ns-btn ns-btn-primary ns-btn-sm ns-crawl-feed" data-id="<?php echo esc_attr($feed['id']); ?>" title="Crawl source URL and enqueue new articles (8-Hour Cycle)">
+                                    <span class="dashicons dashicons-search" style="font-size:14px;width:14px;height:14px;"></span> Crawl (8h)
+                                </button>
+                                <button type="button" class="ns-btn ns-btn-secondary ns-btn-sm ns-run-feed" data-id="<?php echo esc_attr($feed['id']); ?>" title="Run Crawl & Rewrite immediately">
+                                    <span class="dashicons dashicons-controls-play" style="font-size:14px;width:14px;height:14px;"></span> Full Run
                                 </button>
                                 <button type="button" class="ns-btn ns-btn-secondary ns-btn-sm ns-edit-feed" data-id="<?php echo esc_attr($feed['id']); ?>">
                                     Edit
@@ -197,8 +204,15 @@ Tech Stocks,https://techcrunch.com/category/startups/,"Technology > Venture Capi
 
     <!-- PANEL 3: Scraping Queue -->
     <div id="tab-queue" class="ns-panel">
-        <h2 style="margin-top:0;font-size:16px;"><?php esc_html_e('Discovered & Processed Article Queue', 'news-scrapper'); ?></h2>
-        <p style="color:#64748b;font-size:13px;"><?php esc_html_e('Recent articles discovered by Crawl4AI pagination engine and their publishing status.', 'news-scrapper'); ?></p>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
+            <div>
+                <h2 style="margin:0;font-size:16px;"><?php esc_html_e('Discovered & Processed Article Queue', 'news-scrapper'); ?></h2>
+                <p style="color:#64748b;font-size:13px;margin:4px 0 0 0;"><?php esc_html_e('Articles are enqueued by the 8-hour listing crawler and processed every 3-5 minutes by the Gemini AI worker.', 'news-scrapper'); ?></p>
+            </div>
+            <button type="button" class="ns-btn ns-btn-primary ns-process-queue-now" style="background:#059669;border-color:#059669;">
+                <span class="dashicons dashicons-update"></span> <?php esc_html_e('Process Queue Batch Now', 'news-scrapper'); ?>
+            </button>
+        </div>
 
         <?php if (!empty($queue)): ?>
             <table class="ns-table">
@@ -207,6 +221,7 @@ Tech Stocks,https://techcrunch.com/category/startups/,"Technology > Venture Capi
                         <th>ID</th>
                         <th>Feed</th>
                         <th>Headline / URL</th>
+                        <th>Author & Date</th>
                         <th>Status</th>
                         <th>Post Link</th>
                         <th>MD Backup</th>
@@ -221,6 +236,16 @@ Tech Stocks,https://techcrunch.com/category/startups/,"Technology > Venture Capi
                         <td>
                             <strong><?php echo esc_html($item['title_raw'] ?: 'Discovered Link'); ?></strong><br>
                             <a href="<?php echo esc_url($item['article_url']); ?>" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:#64748b;"><?php echo esc_html(substr($item['article_url'], 0, 60) . '...'); ?></a>
+                        </td>
+                        <td>
+                            <?php if (!empty($item['author'])): ?>
+                                <span style="font-size:11px;font-weight:600;color:#1e293b;"><?php echo esc_html($item['author']); ?></span><br>
+                            <?php endif; ?>
+                            <?php if (!empty($item['published_date'])): ?>
+                                <span style="font-size:11px;color:#64748b;"><?php echo esc_html(substr($item['published_date'], 0, 16)); ?></span>
+                            <?php else: ?>
+                                <span style="font-size:11px;color:#94a3b8;">—</span>
+                            <?php endif; ?>
                         </td>
                         <td>
                             <span class="ns-badge <?php echo esc_attr($item['status']); ?>">

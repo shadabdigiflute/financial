@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('NEWS_SCRAPPER_VERSION', '1.0.0');
+define('NEWS_SCRAPPER_VERSION', '1.1.0');
 define('NEWS_SCRAPPER_FILE', __FILE__);
 define('NEWS_SCRAPPER_PATH', plugin_dir_path(__FILE__));
 define('NEWS_SCRAPPER_URL', plugin_dir_url(__FILE__));
@@ -72,13 +72,14 @@ if (is_admin()) {
 }
 
 /**
- * Self-healing DB check on init for container environments
+ * Self-healing DB & Cron check on init for container environments
  */
 add_action('init', 'news_scrapper_check_db');
 function news_scrapper_check_db() {
-    if (!get_option('news_scrapper_db_version')) {
+    $current_version = get_option('news_scrapper_db_version');
+    if ($current_version !== '1.1.0') {
         News_Scraper_DB::create_tables();
         News_Scraper_Cron::schedule_crons();
-        update_option('news_scrapper_db_version', '1.0.0');
+        update_option('news_scrapper_db_version', '1.1.0');
     }
 }

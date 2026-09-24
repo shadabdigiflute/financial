@@ -20,6 +20,8 @@ class News_Scraper_Admin {
         add_action('wp_ajax_news_scraper_get_feed', array($this, 'ajax_get_feed'));
         add_action('wp_ajax_news_scraper_delete_feed', array($this, 'ajax_delete_feed'));
         add_action('wp_ajax_news_scraper_run_feed', array($this, 'ajax_run_feed'));
+        add_action('wp_ajax_news_scraper_crawl_feed', array($this, 'ajax_crawl_feed'));
+        add_action('wp_ajax_news_scraper_process_queue', array($this, 'ajax_process_queue'));
         add_action('wp_ajax_news_scraper_import_csv', array($this, 'ajax_import_csv'));
         add_action('wp_ajax_news_scraper_save_settings', array($this, 'ajax_save_settings'));
     }
@@ -179,6 +181,44 @@ class News_Scraper_Admin {
             wp_send_json_success($result);
         } else {
             wp_send_json_error($result['message'] ?? 'Run failed');
+        }
+    }
+
+    /**
+     * AJAX: Crawl Feed Listing (Tier 1 - 8hr cycle)
+     */
+    public function ajax_crawl_feed() {
+        check_ajax_referer('news_scraper_admin_nonce', 'nonce');
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Permission denied');
+        }
+
+        $id = intval($_POST['id'] ?? 0);
+        $result = News_Scraper_Cron::crawl_feed_listing($id);
+
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error($result['message'] ?? 'Listing crawl failed');
+        }
+    }
+
+    /**
+     * AJAX: Process Queue Batch (Tier 2 - 3min worker)
+     */
+    public function ajax_process_queue() {
+        check_ajax_referer('news_scraper_admin_nonce', 'nonce');
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Permission denied');
+        }
+
+        $batch_size = !empty($_POST['limit']) ? intval($_POST['limit']) : 3;
+        $result = News_Scraper_Cron::process_queue_batch($batch_size);
+
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error($result['message'] ?? 'Queue processing failed');
         }
     }
 
