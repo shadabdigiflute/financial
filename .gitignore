@@ -13,3 +13,9 @@ Thumbs.db
 # Temporary files
 *.log
 *.tmp
+
+# Uploads directory (managed via Docker volume)
+wp-content/uploads/*
+!wp-content/uploads/news-scraper/
+wp-content/uploads/news-scraper/*
+!wp-content/uploads/news-scraper/.gitkeep
