@@ -14,6 +14,8 @@ services:
       WORDPRESS_DB_USER: financial_user
       WORDPRESS_DB_PASSWORD: financial_secure_password_2026
       WORDPRESS_TABLE_PREFIX: wp_
+      CRAWL4AI_API_URL: http://crawl4ai.51.222.83.114.sslip.io
+      CRAWL4AI_API_TOKEN: 8Qz8RKv72nEBB$
     depends_on:
       - db
     volumes:

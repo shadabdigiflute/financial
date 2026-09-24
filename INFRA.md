@@ -101,3 +101,25 @@ The `wp-config.php` file includes smart environment detection:
 2. **Reverse Proxy SSL Support**: Transparently detects `HTTP_X_FORWARDED_PROTO` headers behind Coolify's Traefik reverse proxy to ensure proper HTTPS operation.
 3. **Dynamic Site URL**: Uses the current request's `HTTP_HOST` so assets and navigation never break when switching between local and live URLs.
 4. **Auto-Seeding & Password Sync**: Checks on container startup if the database tables exist; if empty, automatically imports `sql/init.sql`. Also guarantees that admin credentials remain synchronized and usable.
+
+---
+
+## 8. Crawl4AI Microservice Integration
+The Financial project integrates with the shared Crawl4AI headless scraping microservice deployed on Coolify.
+
+- **Service Name**: `crawl4ai` (Shared with Alhamd microservice)
+- **Coolify Project UUID**: `3xxgbanazli508ro6ufvpdct`
+- **Application UUID**: `ynr5vqgqa2divzxif7smrhiw`
+- **Docker Image**: `unclecode/crawl4ai:latest`
+- **Service Status**: `running:healthy` (v0.9.3)
+- **Service Endpoint**: [http://crawl4ai.51.222.83.114.sslip.io](http://crawl4ai.51.222.83.114.sslip.io)
+- **Direct Server Port**: `51.222.83.114:11235`
+- **Authentication Token**: `8Qz8RKv72nEBB$`
+- **WordPress Integration**:
+  - Client Class: `wp-content/themes/bootscore-child/inc/class-crawl4ai-client.php`
+  - Admin Interface: **WP Admin > Market Crawler** (`wp-content/themes/bootscore-child/inc/admin-crawl4ai.php`)
+  - Standalone Pipeline CLI: `pipeline/crawl_financial_data.php`
+- **CLI Example**:
+  ```bash
+  php pipeline/crawl_financial_data.php https://finance.yahoo.com/news --import-wp
+  ```

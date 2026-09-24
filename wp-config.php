@@ -19,7 +19,7 @@ $is_local = (isset($_SERVER['HTTP_HOST']) && strpos($_SERVER['HTTP_HOST'], 'loca
 define( 'DB_NAME', get_config_var('WORDPRESS_DB_NAME', 'financial') );
 define( 'DB_USER', get_config_var('WORDPRESS_DB_USER', $is_local ? 'root' : 'financial_user') );
 define( 'DB_PASSWORD', get_config_var('WORDPRESS_DB_PASSWORD', $is_local ? '' : 'financial_secure_password_2026') );
-define( 'DB_HOST', get_config_var('WORDPRESS_DB_HOST', $is_local ? 'localhost' : 'db:3306') );
+define( 'DB_HOST', get_config_var('WORDPRESS_DB_HOST', $is_local ? '127.0.0.1' : 'db:3306') );
 
 /** Database charset to use in creating database tables. */
 define( 'DB_CHARSET', 'utf8mb4' );
@@ -62,13 +62,18 @@ if ( isset( $_SERVER['HTTP_HOST'] ) ) {
         || ( isset( $_SERVER['HTTP_X_FORWARDED_PROTO'] ) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https' )
         || ( isset( $_SERVER['SERVER_PORT'] ) && $_SERVER['SERVER_PORT'] == 443 );
     $proto = $is_ssl ? 'https://' : 'http://';
+    $subpath = (strpos($_SERVER['HTTP_HOST'], 'localhost') !== false) ? '/financial' : '';
     if ( ! defined( 'WP_HOME' ) ) {
-        define( 'WP_HOME', $proto . $_SERVER['HTTP_HOST'] );
+        define( 'WP_HOME', $proto . $_SERVER['HTTP_HOST'] . $subpath );
     }
     if ( ! defined( 'WP_SITEURL' ) ) {
-        define( 'WP_SITEURL', $proto . $_SERVER['HTTP_HOST'] );
+        define( 'WP_SITEURL', $proto . $_SERVER['HTTP_HOST'] . $subpath );
     }
 }
+
+/** Crawl4AI Microservice API configuration **/
+define( 'CRAWL4AI_API_URL', get_config_var('CRAWL4AI_API_URL', 'http://crawl4ai.51.222.83.114.sslip.io') );
+define( 'CRAWL4AI_API_TOKEN', get_config_var('CRAWL4AI_API_TOKEN', '8Qz8RKv72nEBB$') );
 
 /** Auto-seed database from sql/init.sql if tables are not yet initialized **/
 if ( defined('DB_HOST') && defined('DB_USER') && defined('DB_PASSWORD') && defined('DB_NAME') ) {

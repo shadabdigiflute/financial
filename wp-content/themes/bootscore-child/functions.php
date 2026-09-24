@@ -86,3 +86,11 @@ function meridian_section_head($title, $link_url = '') {
     $output .= '</div>';
     return $output;
 }
+
+/**
+ * Crawl4AI Integration
+ */
+require_once get_stylesheet_directory() . '/inc/class-crawl4ai-client.php';
+if (is_admin()) {
+    require_once get_stylesheet_directory() . '/inc/admin-crawl4ai.php';
+}
